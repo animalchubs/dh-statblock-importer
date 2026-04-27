@@ -22,6 +22,17 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
       "the-void-unofficial.adversaries--environments"
   ];
 
+  /** Void packs used by Daggerheart's character/item compendium browser. */
+  static VOID_BROWSER_PACKS = [
+      "the-void-unofficial.classes",
+      "the-void-unofficial.subclasses",
+      "the-void-unofficial.domains",
+      "the-void-unofficial.ancestries",
+      "the-void-unofficial.communities",
+      "the-void-unofficial.transformations",
+      "the-void-unofficial.weapons"
+  ];
+
   /** Valid adversary types (lowercase) */
   static VALID_ADVERSARY_TYPES = ["bruiser", "horde", "leader", "minion", "ranged", "skulk", "social", "solo", "standard", "support"];
 
@@ -364,6 +375,49 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
           if (next.length !== current.length) {
               await game.settings.set("dh-statblock-importer", update.setting, next);
           }
+      }
+  }
+
+  /**
+   * Daggerheart's character setup uses the system Compendium Browser, not this
+   * importer's compendium lists. Ensure the Void source/packs are visible there
+   * so Blood Hunter, Assassin, and their subclasses show up as character options.
+   */
+  static async includeVoidCharacterOptions() {
+      if (game.system.id !== "daggerheart") return;
+
+      const voidModule = game.modules.get("the-void-unofficial");
+      if (!voidModule?.active) {
+          ui.notifications?.warn("Stats Toolbox: enable The Void (Unofficial) module to use Blood Hunter, Assassin, and other Void character options.");
+          return;
+      }
+
+      const settingKey = CONFIG?.DH?.SETTINGS?.gameSettings?.CompendiumBrowserSettings;
+      if (!settingKey || !game.settings.settings.has(`daggerheart.${settingKey}`)) return;
+
+      const settings = game.settings.get("daggerheart", settingKey);
+      const source = settings.toObject ? settings.toObject() : foundry.utils.deepClone(settings);
+      let changed = false;
+
+      const voidSource = source.excludedSources?.["the-void-unofficial"];
+      if (voidSource?.excludedDocumentTypes?.includes("Item")) {
+          voidSource.excludedDocumentTypes = voidSource.excludedDocumentTypes.filter(t => t !== "Item");
+          changed = true;
+      }
+
+      for (const packId of StatblockImporter.VOID_BROWSER_PACKS) {
+          if (!game.packs.get(packId)) continue;
+
+          const excludedPack = source.excludedPacks?.[packId];
+          if (excludedPack?.excludedDocumentTypes?.includes("Item")) {
+              excludedPack.excludedDocumentTypes = excludedPack.excludedDocumentTypes.filter(t => t !== "Item");
+              changed = true;
+          }
+      }
+
+      if (changed) {
+          await game.settings.set("daggerheart", settingKey, source);
+          ui.notifications?.info("Stats Toolbox: enabled The Void packs in Daggerheart character options.");
       }
   }
 

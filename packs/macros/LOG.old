@@ -1,8 +1,6 @@
-2026/02/03-11:12:56.842 5ef0 Recovering log #1529
-2026/02/03-11:12:56.846 5ef0 Delete type=0 #1529
-2026/02/03-11:12:56.846 5ef0 Delete type=3 #1527
-2026/02/03-11:22:38.614 5848 Level-0 table #1534: started
-2026/02/03-11:22:38.614 5848 Level-0 table #1534: 0 bytes OK
-2026/02/03-11:22:38.616 5848 Delete type=0 #1532
-2026/02/03-11:22:38.621 5848 Manual compaction at level-0 from '!macros!MdqvsiDH4Wmtb3Ke' @ 72057594037927935 : 1 .. '!macros!uvAlpxWSA3uVepDq' @ 0 : 0; will stop at (end)
-2026/02/03-11:22:38.621 5848 Manual compaction at level-1 from '!macros!MdqvsiDH4Wmtb3Ke' @ 72057594037927935 : 1 .. '!macros!uvAlpxWSA3uVepDq' @ 0 : 0; will stop at (end)
+2026/04/27-19:45:27.217 a044 Log #1537: 0 ops saved to Table #1538 OK
+2026/04/27-19:45:27.217 a044 Archiving C:\Users\playe\AppData\Local\FoundryVTT\Data\modules\dh-statblock-importer\packs\macros/001537.log: OK
+2026/04/27-19:45:27.218 a044 Table #915: 3 entries OK
+2026/04/27-19:45:27.218 a044 Table #920: 1 entries OK
+2026/04/27-19:45:27.224 a044 Archiving C:\Users\playe\AppData\Local\FoundryVTT\Data\modules\dh-statblock-importer\packs\macros/MANIFEST-001535: OK
+2026/04/27-19:45:27.236 a044 **** Repaired leveldb C:\Users\playe\AppData\Local\FoundryVTT\Data\modules\dh-statblock-importer\packs\macros; recovered 2 files; 1332 bytes. Some data may have been lost. ****

@@ -31,6 +31,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   StatblockImporter.includeVoidDefaults();
+  StatblockImporter.includeVoidCharacterOptions();
 });
 
 Hooks.on("renderActorDirectory", (app, html) => {

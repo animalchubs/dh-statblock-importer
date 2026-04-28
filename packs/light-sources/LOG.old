@@ -1,0 +1,8 @@
+2026/04/27-22:30:21.556 ef60 Recovering log #12
+2026/04/27-22:30:21.568 ef60 Delete type=0 #12
+2026/04/27-22:30:21.568 ef60 Delete type=3 #10
+2026/04/28-14:46:24.179 f924 Level-0 table #17: started
+2026/04/28-14:46:24.179 f924 Level-0 table #17: 0 bytes OK
+2026/04/28-14:46:24.183 f924 Delete type=0 #15
+2026/04/28-14:46:24.191 f924 Manual compaction at level-0 from '!items!WGgRNNB6k8w9iHo7' @ 72057594037927935 : 1 .. '!items!uiamWLB5XeTTd2om' @ 0 : 0; will stop at (end)
+2026/04/28-14:46:24.191 f924 Manual compaction at level-1 from '!items!WGgRNNB6k8w9iHo7' @ 72057594037927935 : 1 .. '!items!uiamWLB5XeTTd2om' @ 0 : 0; will stop at (end)

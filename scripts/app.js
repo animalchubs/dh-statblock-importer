@@ -4,6 +4,66 @@ import { FeatureCodeDialog } from "./code-dialog.js";
 import { TextNormalizer } from "./utils/text-normalizer.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const MODULE_ID = "dh-statblock-importer";
+const LIGHT_SOURCE_COMPENDIUM_PACK = `${MODULE_ID}.light-sources`;
+const LIGHT_SOURCE_PROFILES = Object.freeze({
+    torch: {
+        label: "Torch",
+        icon: "fa-fire",
+        light: {
+            bright: 20,
+            dim: 40,
+            angle: 360,
+            color: "#f6b15b",
+            alpha: 0.45,
+            animation: { type: "torch", speed: 2, intensity: 4 }
+        }
+    },
+    lantern: {
+        label: "Lantern",
+        icon: "fa-lightbulb",
+        light: {
+            bright: 30,
+            dim: 60,
+            angle: 360,
+            color: "#ffe0a3",
+            alpha: 0.5,
+            animation: { type: "flame", speed: 1, intensity: 2 }
+        }
+    },
+    bodyModLight: {
+        label: "Body Mod Light Source",
+        icon: "fa-lightbulb",
+        light: {
+            bright: 15,
+            dim: 30,
+            angle: 360,
+            color: "#c7f1ff",
+            alpha: 0.45,
+            animation: { type: "pulse", speed: 1, intensity: 2 }
+        }
+    }
+});
+const LIGHT_SOURCE_ITEMS = Object.freeze([
+    {
+        key: "torch",
+        name: "Torch",
+        img: "icons/sundries/lights/torch-brown-lit.webp",
+        description: "<p>A handheld flame that can be toggled from the character sheet to provide token light.</p>"
+    },
+    {
+        key: "lantern",
+        name: "Lantern",
+        img: "icons/sundries/lights/lantern-iron-yellow.webp",
+        description: "<p>A covered lantern that can be toggled from the character sheet to provide steady token light.</p>"
+    },
+    {
+        key: "bodyModLight",
+        name: "Body Mod Light Source",
+        img: "systems/daggerheart/assets/icons/documents/items/round-potion.svg",
+        description: "<p>An installed body modification that can be toggled from the character sheet to provide token light.</p>"
+    }
+]);
 
 /**
  * Main Importer Application using V13 ApplicationV2 standards.
@@ -30,7 +90,10 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
       "the-void-unofficial.ancestries",
       "the-void-unofficial.communities",
       "the-void-unofficial.transformations",
-      "the-void-unofficial.weapons"
+      "the-void-unofficial.weapons",
+      "daggerheart.consumables",
+      "daggerheart.loot",
+      LIGHT_SOURCE_COMPENDIUM_PACK
   ];
 
   /** Valid adversary types (lowercase) */
@@ -378,10 +441,65 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
       }
   }
 
+  static async ensureLightSourceCompendium() {
+      if (!game.user.isGM) return;
+
+      const pack = game.packs.get(LIGHT_SOURCE_COMPENDIUM_PACK);
+      if (!pack) return;
+
+      const wasLocked = pack.locked;
+      if (wasLocked) await pack.configure({ locked: false });
+
+      try {
+          const index = await pack.getIndex({ fields: ["name", "img", "flags"] });
+          const existingByKey = new Map(
+              index
+                  .map(entry => [entry.flags?.[MODULE_ID]?.lightSource, entry])
+                  .filter(([key]) => key)
+          );
+
+          const toCreate = LIGHT_SOURCE_ITEMS
+              .filter(item => !existingByKey.has(item.key))
+              .map(item => ({
+                  name: item.name,
+                  type: "loot",
+                  img: item.img,
+                  system: {
+                      description: item.description,
+                      quantity: 1,
+                      actions: {},
+                      attribution: {
+                          source: "Stats Toolbox"
+                      }
+                  },
+                  flags: {
+                      [MODULE_ID]: {
+                          lightSource: item.key
+                      }
+                  }
+              }));
+          const toUpdate = LIGHT_SOURCE_ITEMS
+              .filter(item => existingByKey.has(item.key) && existingByKey.get(item.key).img !== item.img)
+              .map(item => ({
+                  _id: existingByKey.get(item.key)._id,
+                  img: item.img
+              }));
+
+          if (toCreate.length) {
+              await Item.createDocuments(toCreate, { pack: LIGHT_SOURCE_COMPENDIUM_PACK });
+          }
+          if (toUpdate.length) {
+              await Item.updateDocuments(toUpdate, { pack: LIGHT_SOURCE_COMPENDIUM_PACK });
+          }
+      } finally {
+          if (wasLocked) await pack.configure({ locked: true });
+      }
+  }
+
   /**
-   * Daggerheart's character setup uses the system Compendium Browser, not this
-   * importer's compendium lists. Ensure the Void source/packs are visible there
-   * so Blood Hunter, Assassin, and their subclasses show up as character options.
+   * Daggerheart's character setup and equipment browser use the system
+   * Compendium Browser, not this importer's compendium lists. Ensure the
+   * content packs this module extends are visible there.
    */
   static async includeVoidCharacterOptions() {
       if (game.system.id !== "daggerheart") return;
@@ -405,6 +523,18 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
           changed = true;
       }
 
+      const daggerheartSource = source.excludedSources?.daggerheart;
+      if (daggerheartSource?.excludedDocumentTypes?.includes("Item")) {
+          daggerheartSource.excludedDocumentTypes = daggerheartSource.excludedDocumentTypes.filter(t => t !== "Item");
+          changed = true;
+      }
+
+      const toolboxSource = source.excludedSources?.[MODULE_ID];
+      if (toolboxSource?.excludedDocumentTypes?.includes("Item")) {
+          toolboxSource.excludedDocumentTypes = toolboxSource.excludedDocumentTypes.filter(t => t !== "Item");
+          changed = true;
+      }
+
       for (const packId of StatblockImporter.VOID_BROWSER_PACKS) {
           if (!game.packs.get(packId)) continue;
 
@@ -417,8 +547,371 @@ export class StatblockImporter extends HandlebarsApplicationMixin(ApplicationV2)
 
       if (changed) {
           await game.settings.set("daggerheart", settingKey, source);
-          ui.notifications?.info("Stats Toolbox: enabled The Void packs in Daggerheart character options.");
+          ui.notifications?.info("Stats Toolbox: enabled supported Daggerheart and Void packs in the compendium browser.");
       }
+  }
+
+  static isPurposefulDesignFeature(item) {
+      return item?.type === "feature" && item?.name?.trim().toLowerCase() === "purposeful design";
+  }
+
+  static async handlePurposefulDesign(item) {
+      if (!StatblockImporter.isPurposefulDesignFeature(item)) return;
+
+      const actor = item.parent;
+      if (!actor || actor.documentName !== "Actor" || actor.type !== "character") return;
+      if (!game.user.isGM && !actor.isOwner) return;
+      if (item.getFlag(MODULE_ID, "purposefulDesignApplied")) return;
+
+      const experiences = actor.system?.experiences ?? {};
+      const choices = Object.entries(experiences)
+          .filter(([, exp]) => exp?.name)
+          .map(([key, exp]) => ({
+              key,
+              name: exp.name,
+              value: Number(exp.value ?? exp.modifier ?? 0)
+          }));
+
+      if (choices.length === 0) {
+          await item.setFlag(MODULE_ID, "purposefulDesignPending", true);
+          ui.notifications?.warn(`${actor.name} has Purposeful Design, but no experiences are available to improve yet.`);
+          return;
+      }
+
+      const chosenKey = await StatblockImporter.promptPurposefulDesignExperience(actor, choices);
+      if (!chosenKey) return;
+
+      const chosen = experiences[chosenKey];
+      if (!chosen) return;
+
+      const currentValue = Number(chosen.value ?? chosen.modifier ?? 0);
+      await actor.update({ [`system.experiences.${chosenKey}.value`]: currentValue + 1 });
+      await item.update({
+          [`flags.${MODULE_ID}.purposefulDesignApplied`]: true,
+          [`flags.${MODULE_ID}.purposefulDesignPending`]: false,
+          [`flags.${MODULE_ID}.purposefulDesignExperience`]: chosenKey
+      });
+
+      ui.notifications?.info(`Purposeful Design: ${actor.name}'s ${chosen.name} experience increased by +1.`);
+  }
+
+  static async handlePendingPurposefulDesign(actor) {
+      if (!actor || actor.type !== "character") return;
+      if (!game.user.isGM && !actor.isOwner) return;
+
+      const pending = actor.items?.find(item =>
+          StatblockImporter.isPurposefulDesignFeature(item) &&
+          item.getFlag(MODULE_ID, "purposefulDesignPending") &&
+          !item.getFlag(MODULE_ID, "purposefulDesignApplied")
+      );
+
+      if (pending) await StatblockImporter.handlePurposefulDesign(pending);
+  }
+
+  static async promptPurposefulDesignExperience(actor, choices) {
+      const formatSigned = (value) => value >= 0 ? `+${value}` : `${value}`;
+      const options = choices
+          .map(choice => `<option value="${choice.key}">${foundry.utils.escapeHTML(choice.name)} (${formatSigned(choice.value)})</option>`)
+          .join("");
+
+      return new Promise(resolve => {
+          new foundry.applications.api.DialogV2({
+              window: {
+                  title: "Purposeful Design",
+                  icon: "fa-solid fa-gears"
+              },
+              content: `
+                  <form>
+                      <p>Choose one of <strong>${foundry.utils.escapeHTML(actor.name)}</strong>'s experiences to increase by +1.</p>
+                      <div class="form-group">
+                          <label>Experience</label>
+                          <select name="experience">${options}</select>
+                      </div>
+                  </form>
+              `,
+              modal: true,
+              buttons: [
+                  {
+                      action: "confirm",
+                      label: "Apply +1",
+                      icon: "fa-solid fa-check",
+                      default: true,
+                      callback: (event, button) => resolve(button.form.elements.experience.value)
+                  },
+                  {
+                      action: "cancel",
+                      label: "Cancel",
+                      icon: "fa-solid fa-times",
+                      callback: () => resolve(null)
+                  }
+              ],
+              close: () => resolve(null)
+          }).render(true);
+      });
+  }
+
+  static enhanceCharacterDescriptionSheet(app, html, attempt = 0) {
+      const actor = app?.document ?? app?.actor;
+      if (!actor || actor.documentName !== "Actor" || actor.type !== "character") return;
+
+      const element = html instanceof HTMLElement ? html : html?.[0] ?? app?.element;
+      if (!element) return;
+
+      const pronounsInput = element.querySelector("[name='system.biography.characteristics.pronouns']");
+      if (!pronounsInput) {
+          if (element.dataset.dhDescriptionObserver !== "true") {
+              element.dataset.dhDescriptionObserver = "true";
+              const observer = new MutationObserver(() => {
+                  if (element.querySelector("[name='system.biography.characteristics.pronouns']")) {
+                      observer.disconnect();
+                      delete element.dataset.dhDescriptionObserver;
+                      StatblockImporter.enhanceCharacterDescriptionSheet(app, element);
+                  }
+              });
+              observer.observe(element, { childList: true, subtree: true });
+              window.setTimeout(() => observer.disconnect(), 10000);
+          }
+          if (attempt < 20) {
+              window.setTimeout(() => StatblockImporter.enhanceCharacterDescriptionSheet(app, app.element, attempt + 1), 50);
+          }
+          return;
+      }
+
+      const fieldset = pronounsInput.closest("fieldset");
+      if (!fieldset || fieldset.dataset.dhDescriptionEnhanced === "true") return;
+
+      const characteristicsLegend = fieldset.querySelector("legend") ?? document.createElement("legend");
+      fieldset.dataset.dhDescriptionEnhanced = "true";
+      characteristicsLegend.textContent = "Description";
+
+      const inputs = Array.from(fieldset.querySelectorAll(".input"));
+      const pronounsRow = inputs.find(row => row.querySelector("[name='system.biography.characteristics.pronouns']"));
+
+      const descriptionList = document.createElement("ol");
+      descriptionList.className = "dh-description-list";
+
+      descriptionList.appendChild(StatblockImporter.createDescriptionDetailRow({
+          label: "Pronouns",
+          content: pronounsRow ?? StatblockImporter.createDescriptionInputRow({
+              label: "Pronouns",
+              name: "system.biography.characteristics.pronouns",
+              value: actor.system?.biography?.characteristics?.pronouns ?? ""
+          })
+      }));
+
+      const fields = [
+          ["clothes", "Clothes that are"],
+          ["eyes", "Eyes like"],
+          ["body", "Body that's"],
+          ["color", "The Color of"],
+          ["attitude", "Attitude like"]
+      ];
+
+      for (const [key, label] of fields) {
+          descriptionList.appendChild(StatblockImporter.createDescriptionDetailRow({
+              label,
+              content: StatblockImporter.createDescriptionTextarea({
+                  name: `flags.${MODULE_ID}.description.${key}`,
+                  value: actor.getFlag(MODULE_ID, `description.${key}`) ?? ""
+              })
+          }));
+      }
+
+      fieldset.innerHTML = "";
+      fieldset.append(characteristicsLegend, descriptionList);
+
+      fieldset.querySelectorAll(`[name^="flags.${MODULE_ID}.description."]`).forEach(input => {
+          input.addEventListener("change", async event => {
+              const path = event.currentTarget.name.replace(`flags.${MODULE_ID}.`, "");
+              await actor.setFlag(MODULE_ID, path, event.currentTarget.value);
+          });
+      });
+  }
+
+  static createDescriptionInputRow({ label, name, value }) {
+      const row = document.createElement("div");
+      row.className = "input";
+
+      const span = document.createElement("span");
+      span.textContent = label;
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.name = name;
+      input.value = value;
+
+      row.append(span, input);
+      return row;
+  }
+
+  static createDescriptionDetailRow({ label, content }) {
+      const item = document.createElement("li");
+      item.className = "dh-description-item";
+
+      const details = document.createElement("details");
+      details.className = "dh-description-details";
+
+      const summary = document.createElement("summary");
+      summary.textContent = label;
+
+      const body = document.createElement("div");
+      body.className = "dh-description-body";
+      body.appendChild(content);
+
+      details.append(summary, body);
+      item.appendChild(details);
+      return item;
+  }
+
+  static createDescriptionTextarea({ name, value }) {
+      const textarea = document.createElement("textarea");
+      textarea.name = name;
+      textarea.value = value;
+      textarea.rows = 4;
+      return textarea;
+  }
+
+  static enhanceLightSourceItems(app, html) {
+      const actor = app?.document ?? app?.actor;
+      if (!actor || actor.documentName !== "Actor" || actor.type !== "character") return;
+      if (!game.user.isGM && !actor.isOwner) return;
+
+      const element = html instanceof HTMLElement ? html : html?.[0] ?? app?.element;
+      if (!element) return;
+
+      const activeLight = actor.getFlag(MODULE_ID, "activeLightSource");
+      const rows = element.querySelectorAll(".inventory-item[data-item-id]");
+      if (!rows.length) {
+          if (element.dataset.dhLightSourceObserver !== "true") {
+              element.dataset.dhLightSourceObserver = "true";
+              const observer = new MutationObserver(() => {
+                  if (element.querySelector(".inventory-item[data-item-id]")) {
+                      observer.disconnect();
+                      delete element.dataset.dhLightSourceObserver;
+                      StatblockImporter.enhanceLightSourceItems(app, element);
+                  }
+              });
+              observer.observe(element, { childList: true, subtree: true });
+              window.setTimeout(() => observer.disconnect(), 10000);
+          }
+          return;
+      }
+
+      for (const row of rows) {
+          const item = actor.items?.get(row.dataset.itemId);
+          const profile = StatblockImporter.getLightSourceProfile(item);
+          if (!profile || row.querySelector(".dh-light-source-toggle")) continue;
+
+          const controls = row.querySelector(".controls");
+          if (!controls) continue;
+
+          const button = document.createElement("a");
+          button.className = "dh-light-source-toggle";
+          if (activeLight?.itemId === item.id) button.classList.add("active");
+          button.dataset.tooltip = `${profile.label}: toggle token light`;
+          button.innerHTML = `<i class="fa-solid fa-fw ${profile.icon}" inert></i>`;
+          button.addEventListener("click", async event => {
+              event.preventDefault();
+              event.stopPropagation();
+              await StatblockImporter.toggleLightSourceItem(actor, item, profile);
+          });
+
+          controls.prepend(button);
+      }
+  }
+
+  static getLightSourceProfile(item) {
+      if (!item) return null;
+
+      const name = item.name?.trim().toLowerCase() ?? "";
+      if (!name) return null;
+      if (/\btorch\b/.test(name)) return LIGHT_SOURCE_PROFILES.torch;
+      if (/\blantern\b/.test(name)) return LIGHT_SOURCE_PROFILES.lantern;
+      if (/\blight source\b/.test(name)) return LIGHT_SOURCE_PROFILES.bodyModLight;
+      if (name.includes("light") && name.includes("body") && (name.includes("mod") || name.includes("modification"))) {
+          return LIGHT_SOURCE_PROFILES.bodyModLight;
+      }
+      return null;
+  }
+
+  static async toggleLightSourceItem(actor, item, profile) {
+      const tokens = StatblockImporter.getActorLightTargetTokens(actor);
+      if (!tokens.length) {
+          ui.notifications?.warn(`Place or select a token for ${actor.name} before toggling ${profile.label}.`);
+          return;
+      }
+
+      const activeLight = actor.getFlag(MODULE_ID, "activeLightSource");
+      if (activeLight?.itemId === item.id) {
+          await StatblockImporter.disableLightSource(actor, activeLight, tokens);
+          ui.notifications?.info(`${profile.label} turned off for ${actor.name}.`);
+          return;
+      }
+
+      if (activeLight?.itemId) {
+          await StatblockImporter.disableLightSource(actor, activeLight, tokens);
+      }
+
+      const previousLights = {};
+      for (const token of tokens) {
+          previousLights[token.uuid] = token.light?.toObject
+              ? token.light.toObject()
+              : foundry.utils.deepClone(token.light ?? {});
+          await token.update(StatblockImporter.getLightUpdateData(profile.light));
+      }
+
+      await actor.setFlag(MODULE_ID, "activeLightSource", {
+          itemId: item.id,
+          itemName: item.name,
+          profile: profile.label,
+          previousLights
+      });
+
+      ui.notifications?.info(`${profile.label} turned on for ${actor.name}.`);
+  }
+
+  static getActorLightTargetTokens(actor) {
+      const controlled = canvas?.tokens?.controlled
+          ?.filter(token => token.actor?.id === actor.id)
+          ?.map(token => token.document) ?? [];
+      if (controlled.length) return controlled;
+
+      return actor.getActiveTokens?.()
+          ?.map(token => token.document ?? token)
+          ?.filter(token => token?.object?.scene === canvas?.scene || token?.parent === canvas?.scene) ?? [];
+  }
+
+  static getLightUpdateData(light) {
+      return {
+          "light.bright": light.bright,
+          "light.dim": light.dim,
+          "light.angle": light.angle,
+          "light.color": light.color,
+          "light.alpha": light.alpha,
+          "light.animation.type": light.animation?.type ?? null,
+          "light.animation.speed": light.animation?.speed ?? 0,
+          "light.animation.intensity": light.animation?.intensity ?? 0
+      };
+  }
+
+  static async disableLightSource(actor, activeLight, tokens) {
+      for (const token of tokens) {
+          const previous = activeLight?.previousLights?.[token.uuid];
+          if (previous) {
+              await token.update({ light: previous });
+          } else {
+              await token.update({
+                  "light.bright": 0,
+                  "light.dim": 0,
+                  "light.color": null,
+                  "light.animation.type": null,
+                  "light.animation.speed": 0,
+                  "light.animation.intensity": 0
+              });
+          }
+      }
+
+      await actor.unsetFlag(MODULE_ID, "activeLightSource");
   }
 
   /* -------------------------------------------- */

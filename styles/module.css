@@ -1,4 +1,53 @@
 /* ============================================== */
+/* Character Sheet Description                    */
+/* ============================================== */
+
+.dh-description-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.dh-description-item {
+    padding-left: 2px;
+}
+
+.dh-description-details {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.dh-description-details > summary {
+    cursor: pointer;
+    padding: 6px 8px;
+    font-weight: 600;
+}
+
+.dh-description-body {
+    padding: 0 8px 8px;
+}
+
+.dh-description-body .input {
+    display: grid;
+    grid-template-columns: minmax(88px, max-content) 1fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.dh-description-body textarea {
+    width: 100%;
+    min-height: 90px;
+    resize: vertical;
+}
+
+.dh-light-source-toggle.active {
+    color: #ffd166;
+    text-shadow: 0 0 6px rgba(255, 209, 102, 0.8);
+}
+
+/* ============================================== */
 /* Statblock Importer                             */
 /* ============================================== */
 

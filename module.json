@@ -44,7 +44,7 @@
       {
         "id": "the-void-unofficial",
         "type": "module",
-        "manifest": "https://raw.githubusercontent.com/brunocalado/the-void-unofficial/main/module.json",
+        "manifest": "https://raw.githubusercontent.com/animalchubs/the-void-unofficial/main/module.json",
         "compatibility": {
           "minimum": "1.1.6"
         }
@@ -93,6 +93,19 @@
       },
       "flags": {},
       "banner": "modules/dh-statblock-importer/assets/images/banner.webp"
+    },
+    {
+      "label": "Light Sources",
+      "type": "Item",
+      "name": "light-sources",
+      "path": "packs/light-sources",
+      "system": "daggerheart",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {},
+      "banner": "modules/dh-statblock-importer/assets/images/banner.webp"
     }
   ],
   "packFolders": [
@@ -103,7 +116,8 @@
       "packs": [
         "all-features",
         "macros",
-        "journal"
+        "journal",
+        "light-sources"
       ],
       "folders": []
     }

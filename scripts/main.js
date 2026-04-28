@@ -29,9 +29,40 @@ Hooks.once("init", () => {
   window.SI = SI;
 });
 
-Hooks.once("ready", () => {
-  StatblockImporter.includeVoidDefaults();
-  StatblockImporter.includeVoidCharacterOptions();
+Hooks.once("ready", async () => {
+  await StatblockImporter.includeVoidDefaults();
+  await StatblockImporter.ensureLightSourceCompendium();
+  await StatblockImporter.includeVoidCharacterOptions();
+});
+
+Hooks.on("createItem", (item) => {
+  StatblockImporter.handlePurposefulDesign(item);
+});
+
+Hooks.on("updateActor", (actor, changes) => {
+  if (foundry.utils.hasProperty(changes, "system.experiences")) {
+    StatblockImporter.handlePendingPurposefulDesign(actor);
+  }
+});
+
+Hooks.on("renderActorSheet", (app, html) => {
+  StatblockImporter.enhanceCharacterDescriptionSheet(app, html);
+  StatblockImporter.enhanceLightSourceItems(app, html);
+});
+
+Hooks.on("renderCharacterSheet", (app, html) => {
+  StatblockImporter.enhanceCharacterDescriptionSheet(app, html);
+  StatblockImporter.enhanceLightSourceItems(app, html);
+});
+
+Hooks.on("renderDhpActorSheet", (app, html) => {
+  StatblockImporter.enhanceCharacterDescriptionSheet(app, html);
+  StatblockImporter.enhanceLightSourceItems(app, html);
+});
+
+Hooks.on("renderApplication", (app, html) => {
+  StatblockImporter.enhanceCharacterDescriptionSheet(app, html);
+  StatblockImporter.enhanceLightSourceItems(app, html);
 });
 
 Hooks.on("renderActorDirectory", (app, html) => {
